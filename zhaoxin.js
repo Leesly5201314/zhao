@@ -8,8 +8,7 @@
 **************************************
 
 [rewrite_local]
-^https?:\/\/.*\.mihuangame\.com\/api\/v\d\/sys url script-request-body https://raw.githubusercontent.com/Leesly5201314/zhao/main/zhaoxin.js
-^https?:\/\/.*\.mihuangame\.com\/(api\/v\d\/sys\/user|toutiaoGame\/ZhaoYunAndADou) url script-response-body https://raw.githubusercontent.com/Leesly5201314/zhao/main/zhaoxin.js
+^https?:\/\/.*\.mihuangame\.com\/.+ url script-response-body https://raw.githubusercontent.com/Leesly5201314/zhao/main/zhaoxin.js
 
 [mitm]
 hostname = *.mihuangame.com
@@ -20,36 +19,28 @@ const Gold = 9999999;
 const Stamina = 999999;
 
 function safeJson(body) {
-  try { return JSON.parse(body || "{}"); } catch (e) { return {}; }
+  try { return JSON.parse(body || "{}"); } catch (e) { return null; }
 }
 
-let obj = {};
-let ddm = {};
+var body = $response.body;
+var obj = safeJson(body);
+if (!obj) { $done({}); }
 
-if (typeof $response === "undefined") {
-  if (/user\/data/.test($request.url)) {
-    ddm = safeJson($request.body);
-    if (ddm.sm !== undefined) ddm.sm = Stamina;
-    if (ddm.gd !== undefined && ddm.gd < Gold) ddm.gd = Gold;
-    obj.body = JSON.stringify(ddm);
-  }
+var modified = false;
+
+// 登录接口：userData 内嵌
+if (obj.data && obj.data.userData) {
+  var d = obj.data.userData;
+  if (d.gd !== undefined) { d.gd = Math.max(d.gd, Gold); modified = true; }
+  if (d.sm !== undefined) { d.sm = Stamina; modified = true; }
+}
+
+// 直接返回的玩家数据
+if (obj.gd !== undefined) { obj.gd = Math.max(obj.gd, Gold); modified = true; }
+if (obj.sm !== undefined) { obj.sm = Stamina; modified = true; }
+
+if (modified) {
+  $done({ body: JSON.stringify(obj) });
 } else {
-  ddm = safeJson($response.body);
-  if (/user\/login/.test($request.url)) {
-    ddm.data = ddm.data || {};
-    ddm.data.userData = ddm.data.userData || {};
-    let d = ddm.data.userData;
-    if (d.sm !== undefined) d.sm = Stamina;
-    if (d.gd !== undefined && d.gd < Gold) d.gd = Gold;
-    ddm.code = 0;
-    ddm.msg = "Success";
-  }
-  if (/user\/data/.test($request.url)) {
-    ddm = { "msg": "Success", "data": null, "code": 0 };
-  }
-  obj.status = 200;
-  obj.body = JSON.stringify(ddm);
+  $done({});
 }
-
-$done(obj);
-
